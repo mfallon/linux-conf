@@ -4,7 +4,7 @@
 [push]
   default = simple
 [core]
-  autocrlf = true
+  autocrlf = false
 [merge]
   tool = meld
 [mergetool]
