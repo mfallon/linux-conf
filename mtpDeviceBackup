@@ -1,0 +1,168 @@
+#!/bin/bash
+#
+# Backup essential folders on plugged in android devices to a mounted drive
+
+#########################    GLOBAL VARIABLES    ##############################
+
+## pass further opts to rsync
+RSYNCOPTS="-avn --stats --ignore-existing"
+
+# copy all files at location or location itself
+COPYARGS="/*.*"
+
+## TODO: could name these vars better to better reflect the backup medium tgt and the device src and the direction it flows
+## BACKUP MEDIUM
+
+# Mounted drive that will hold backups
+MOUNTDRV=""
+
+# directory on MOUNTDRv where backups will be rsynced to - specified later when we know MOUNTDRV is mounted
+TGTBACKUPDIR=""
+
+# TODO: get the root backup directory (excluding devicename) for putting backup logs to. Usually: /Backup
+TGTBACKUPDIRROOT=""
+
+## DEVICE
+
+# fully qualified path to directory on device - compiled from above opts
+SRCDEVICEDIR=""
+
+# device backup folder - option gathered and appended to SRCDEVICEDIR
+DEVICENAME=""
+
+# the name of logfile is derived from TGTBACKUPDIRDIR
+LOGFILE=""
+
+# what we are backing up on SRCDEVICEDIR - i.e. Internal\ storage/DCIM/Camera
+# specifiy the folder on the device that you want backed up
+BACKUPSRC=""
+
+# don't know why $XDG_RUNTIME_DIR - my script shouldn't rely on it
+# ANDROID_DEVICE needs string sanitized for rsync
+# escape [':','=',' ']
+ANDROID_DEVICE=`ls -1 $XDG_RUNTIME_DIR/gvfs | sed 's/:/\\:/g'` 
+
+
+#########################    HOUSEKEEPING - CHECK ENV    ##############################
+
+# define how our script should be used - and what conditions are required
+function usage {
+printf "Usage: \
+  $0 \n\
+  [-o \"<opts>\"]     Optionally pass opts to rsync - must be enclosed in quotes. Current opts: $RSYNCOPTS
+  -m <mount_point>    The mounted drive to back up to.
+  -O <backup_folder>  The folder to backup to on mounted drive <mount_point>.
+  -s \"<backup_src>\" The files in folder you want backed up on device - non-recursive and enclosed in quotes if there are spaces.
+  [-r]                Optionally provide option -r if a whole folder copy is desired rather than all files wildcard *.*";
+printf "\n";
+exit 0;
+}
+
+# ensure we have our options before proceeding
+if [ ! $# -gt 0 ]; then
+  usage
+fi
+
+
+while getopts "o:O:m:s:r" opt; do
+  case $opt in
+    o)
+      RSYNCOPTS="$OPTARG"
+      ;;
+    O)
+      DEVICENAME="$OPTARG"
+      ;;
+    m)
+      MOUNTDRV="$OPTARG"
+      ;;
+    s)
+      # Escape any spaces on device src backup path 
+      BACKUPSRC=`echo "$OPTARG" | sed 's/ /\\ /g'`
+      ;;
+    r)
+      COPYARGS=""
+      ;;
+    *)
+      echo "Invalid option: -$OPTARG" >&2
+      usage
+      ;;
+  esac
+done
+
+# ensure we have our options before proceeding
+if [[ -z $DEVICENAME || -z $MOUNTDRV  || -z $BACKUPSRC ]] ; then
+  usage
+fi
+
+# Check Mount Points: /media/mark/texas & /home/mark/android
+if ! mount | grep -q $MOUNTDRV; then
+  echo "ERROR: $MOUNTDRV is not mounted!"
+  usage
+else
+  TGTBACKUPDIR="/media/${USER}/${MOUNTDRV}"
+fi
+
+# Check for DEVICENAME - if not exists, DON'T create it
+if [[ ! -d "$TGTBACKUPDIR/$DEVICENAME" ]]; then
+  echo "INFO: Backup directory does not exist: $TGTBACKUPDIR/$DEVICENAME. I will create it."
+  mkdir -v "$TGTBACKUPDIR/$DEVICENAME"
+fi
+
+
+# Tested with A0001 - One Plus
+# Bus 002 Device 005: ID 05c6:6765 Qualcomm, Inc.
+# mtp:host=%5Busb%3A002%2C005%5D
+# mtp://[usb:002,005]
+# Also check:
+#   /run/user/1000/gvfs
+#   /run/user/${currentUserId}/gvfs/${device}
+
+if [ ! -n $ANDROID_DEVICE ]; then
+  echo "ERROR: Android device is not mounted! Plug it in then run script again."
+  exit 1
+else
+  # SRCDEVICEDIR="/home/$USER/android/$ANDROID_DEVICE" 
+  SRCDEVICEDIR="$XDG_RUNTIME_DIR/gvfs/$ANDROID_DEVICE" 
+fi
+
+# Derive LOGFILE from TGTBACKUPDIRDIR
+LOGFILE=`basename $DEVICENAME`
+
+# script will run against device and target folder
+# plug in the device to back up and ensure that the
+# $1 arg is the folder on the MOUNTDRV
+
+echo "RSYNCOPTS:$RSYNCOPTS"
+echo "COPYARGS:$COPYARGS"
+echo "DEVICENAME:$DEVICENAME"
+echo "MOUNTDRV:$MOUNTDRV"
+echo "TGTBACKUPDIR:$TGTBACKUPDIR"
+echo "BACKUPSRC:$BACKUPSRC"
+echo "ANDROID_DEVICE:$ANDROID_DEVICE"
+echo "SRCDEVICEDIR:$SRCDEVICEDIR"
+#########################    MAIN    ##############################
+
+if [ -n $ANDROID_DEVICE ] && [ -d $SRCDEVICEDIR ]; then
+  # check for log dir
+  if [ ! -d "$TGTBACKUPDIR/log" ]; then
+    echo "INFO: log directory does not exist. I will create it."
+    mkdir -v $TGTBACKUPDIR/log
+  fi
+  # start rsync with opts
+  # TODO: check permissions on TGT before we write
+  echo "rsync $RSYNCOPTS --log-file=$TGTBACKUPDIR/log/$LOGFILE.log $SRCDEVICEDIR/$BACKUPSRC$COPYARGS $TGTBACKUPDIR/$DEVICENAME"
+  # rsync -av${DRYRUN} --stats --ignore-existing --log-file=$TGTBACKUPDIR/log/A0001.log $SRCDEVICEDIR/Internal\ storage/DCIM/Camera/*.* "$TGTBACKUPDIR/A0001"
+  # NOTE: even though I've backslashed spaces, still need to quote BACKUPSRC
+  rsync $RSYNCOPTS --log-file=$TGTBACKUPDIR/log/$LOGFILE.log $SRCDEVICEDIR/"$BACKUPSRC"$COPYARGS $TGTBACKUPDIR/$DEVICENAME
+else
+  echo "Error in: ANDROID_DEVICE:$ANDROID_DEVICE SRCDEVICEDIR:$SRCDEVICEDIR"
+  exit 1
+fi
+
+
+# rsync -av --stats --ignore-existing /home/mark/android/$(device)/Internal\ storage/DCIM/Camera/* /media/mark/texas/mobilephotos/A0001
+
+# Backup set: [SmartVoiceRecorder, SoundRecorder, mf
+
+# Now backup any other devices as well to respective folder
+exit 0
