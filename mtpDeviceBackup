@@ -104,8 +104,9 @@ fi
 
 # Check for DEVICENAME - if not exists, DON'T create it
 if [[ ! -d "$TGTBACKUPDIR/$DEVICENAME" ]]; then
-  echo "INFO: Backup directory does not exist: $TGTBACKUPDIR/$DEVICENAME. I will create it."
-  mkdir -v "$TGTBACKUPDIR/$DEVICENAME"
+  echo "INFO: Backup directory does not exist: $TGTBACKUPDIR/$DEVICENAME. I will not create it."
+  # mkdir -v "$TGTBACKUPDIR/$DEVICENAME"
+  usage
 fi
 
 
@@ -144,16 +145,16 @@ echo "SRCDEVICEDIR:$SRCDEVICEDIR"
 
 if [ -n $ANDROID_DEVICE ] && [ -d $SRCDEVICEDIR ]; then
   # check for log dir
-  if [ ! -d "$TGTBACKUPDIR/log" ]; then
+  if [ ! -d "$TGTBACKUPDIR/$DEVICENAME/log" ]; then
     echo "INFO: log directory does not exist. I will create it."
-    mkdir -v $TGTBACKUPDIR/log
+    mkdir -v $TGTBACKUPDIR/$DEVICENAME/log
   fi
   # start rsync with opts
   # TODO: check permissions on TGT before we write
-  echo "rsync $RSYNCOPTS --log-file=$TGTBACKUPDIR/log/$LOGFILE.log $SRCDEVICEDIR/$BACKUPSRC$COPYARGS $TGTBACKUPDIR/$DEVICENAME"
+  echo "rsync $RSYNCOPTS --log-file=$TGTBACKUPDIR/$DEVICENAME/log/$LOGFILE.log $SRCDEVICEDIR/$BACKUPSRC$COPYARGS $TGTBACKUPDIR/$DEVICENAME"
   # rsync -av${DRYRUN} --stats --ignore-existing --log-file=$TGTBACKUPDIR/log/A0001.log $SRCDEVICEDIR/Internal\ storage/DCIM/Camera/*.* "$TGTBACKUPDIR/A0001"
   # NOTE: even though I've backslashed spaces, still need to quote BACKUPSRC
-  rsync $RSYNCOPTS --log-file=$TGTBACKUPDIR/log/$LOGFILE.log $SRCDEVICEDIR/"$BACKUPSRC"$COPYARGS $TGTBACKUPDIR/$DEVICENAME
+  rsync $RSYNCOPTS --log-file=$TGTBACKUPDIR/$DEVICENAME/log/$LOGFILE.log $SRCDEVICEDIR/"$BACKUPSRC"$COPYARGS $TGTBACKUPDIR/$DEVICENAME
 else
   echo "Error in: ANDROID_DEVICE:$ANDROID_DEVICE SRCDEVICEDIR:$SRCDEVICEDIR"
   exit 1

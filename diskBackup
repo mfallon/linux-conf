@@ -96,7 +96,7 @@ if ! mount | grep -q $MOUNTDRV; then
   echo "Error: $MOUNTDRV is not mounted!"
   usage
 else
-  TGTBACKUPDIR="/media/${USER}/${MOUNTDRV}/mobilephotos"
+  TGTBACKUPDIR="/media/${USER}/${MOUNTDRV}"
 fi
 
 # Check for TGTBACKUPDIRDIR - if not exists, DON'T create it
